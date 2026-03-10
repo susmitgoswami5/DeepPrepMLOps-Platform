@@ -1,0 +1,22 @@
+# Virtual Environments
+venv/
+env/
+.venv/
+.env/
+
+# Python caching
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+
+# IDE and OS
+.vscode/
+.idea/
+.DS_Store
+
+# Data, Logs, and weights (optional to exclude for large files)
+# models/*.pth
+# data/*.parquet
+# src/monitoring/reports/*.html

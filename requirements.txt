@@ -1,0 +1,16 @@
+fastapi
+uvicorn
+polars
+torch
+numpy
+scikit-learn
+prometheus-client
+pytest
+requests
+feast
+redis
+confluent-kafka
+shap
+evidently
+streamlit
+prefect

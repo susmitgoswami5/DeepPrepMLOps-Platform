@@ -1,0 +1,23 @@
+
+`
+@
+restaurant_idRestaurant identifier"restaurant_idJ	deep_prep
+¥ÁÍ°êú¥ÁÍ°êú
+@
+ 
+__dummy"
+__dummy_idJ	deep_prep
+¥ÁÍğ½ïú¥ÁÍ Ÿôú1"$d2e03d08-e082-4980-83bd-cabe2a348546*¹ÁÍ°ø‘2€
+Ç
+restaurant_features	deep_preprestaurant_id"
+load_15m"
+load_30m"
+load_60m"
+average_prep_time_ms*
+teamlogistics_ml2 8:¡event_timestampZdata/restaurant_stats.parquetŠ1feast.infra.offline_stores.file_source.FileSource¢restaurant_hourly_stats’¥ÁÍˆ³ù÷"¥ÁÍ˜áÑú@b
+restaurant_id4
+¥ÁÍ¸åÚú¹ÁÍÈƒ
+™æÀÍøËËğµÁÍb­event_timestampZdata/restaurant_stats.parquetŠ1feast.infra.offline_stores.file_source.FileSource¢restaurant_hourly_statsª	deep_prep’¥ÁÍˆ³ù÷"¥ÁÍ˜áÑúŠ+
+
+	deep_prep
+¥ÁÍ¸®Ÿø¥ÁÍ¸®Ÿø
