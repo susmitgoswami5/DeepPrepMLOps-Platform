@@ -49,6 +49,10 @@ if st.sidebar.button("Simulate Incoming Order Stream"):
             p95 = explain_data['prediction_p95']
             st.success(f"**Target ETA (P95):** {p95} minutes")
             
+            # Show Surge Status if active
+            if explain_data.get('is_surging'):
+                st.error("🚨 **SURGE CONTROL ACTIVE**: Kitchen load critical! Order throttling and surge pricing applied.")
+            
             # 2. Display Feature Importances (SHAP)
             st.subheader("🤖 SHAP Feature Importances")
             st.markdown("What factors drove this prediction up or down?")

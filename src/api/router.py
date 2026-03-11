@@ -10,6 +10,7 @@ from datetime import datetime
 import redis
 from prometheus_client import make_asgi_app, Counter, Histogram
 import shap
+from confluent_kafka import Producer
 
 # Import our custom components
 from src.model.architecture import DeepPrepModel
@@ -37,6 +38,11 @@ R2I = {}
 FS = None
 # "Self-Correcting" stress factor
 REDIS_CLIENT = redis.Redis(host=os.getenv("FEAST_REDIS_HOST", "localhost"), port=6379, db=0, decode_responses=True)
+
+# Kafka Producer config
+KAFKA_BROKER = os.getenv("KAFKA_BROKER", "localhost:9092")
+KAFKA_PRODUCER = None
+SURGE_THRESHOLD_MINUTES = 30.0
 # SHAP Background distributions
 BG_DISTS = {}
 
@@ -63,6 +69,7 @@ class FPTPrediction(BaseModel):
     p95_minutes: float
     stress_multiplier_applied: float
     model_version: str = "champion"
+    is_surging: bool = False
 
 class BreachFeedback(BaseModel):
     restaurant_id: str
@@ -83,10 +90,18 @@ class ExplainResponse(BaseModel):
     prediction_p95: float
     feature_importance_shap: Dict[str, float]
     key_factors: List[str]
+    is_surging: bool = False
 
 @app.on_event("startup")
 async def startup_event():
-    global MODEL, CHALLENGER_MODEL, R2I, FS, BG_DISTS
+    global MODEL, CHALLENGER_MODEL, R2I, FS, BG_DISTS, KAFKA_PRODUCER
+    
+    # Init Kafka Producer for active system control loop
+    try:
+        KAFKA_PRODUCER = Producer({'bootstrap.servers': KAFKA_BROKER})
+    except Exception as e:
+        print(f"Failed to init Kafka Producer: {e}")
+        KAFKA_PRODUCER = None
     
     # Load Mapping
     mapping_path = "models/restaurant_mapping.json"
@@ -202,13 +217,40 @@ async def predict_fpt(req: OrderInferenceRequest):
     p90 *= stress_mult
     p95 *= stress_mult
     
+    # --- ACTIVE SURGE CONTROL LOOP ---
+    is_surging = False
+    try:
+        # Check if already surging
+        if REDIS_CLIENT.get(f"surge:{req.restaurant_id}"):
+            is_surging = True
+        
+        # Trigger surge if threshold breached and not already surging
+        if p95 > SURGE_THRESHOLD_MINUTES and not is_surging:
+            is_surging = True
+            REDIS_CLIENT.setex(f"surge:{req.restaurant_id}", 300, "1") # 5 min TTL
+            print(f"🚨 SURGE ACTIVATED for {req.restaurant_id} (ETA: {p95:.1f}m)")
+            
+            # Broadcast to logistics network via Kafka
+            if KAFKA_PRODUCER:
+                event = {
+                    "event_type": "SURGE_ACTIVATED",
+                    "restaurant_id": req.restaurant_id,
+                    "p95_minutes": p95,
+                    "timestamp": datetime.utcnow().isoformat()
+                }
+                KAFKA_PRODUCER.produce("restaurant_events", value=json.dumps(event).encode("utf-8"))
+                KAFKA_PRODUCER.poll(0)
+    except Exception as e:
+        pass # Graceful degradation if Redis/Kafka fails
+        
     return FPTPrediction(
         order_id=req.order_id,
         p50_minutes=round(max(1.0, p50), 2),
         p90_minutes=round(max(1.0, p90), 2),
         p95_minutes=round(max(1.0, p95), 2),
         stress_multiplier_applied=stress_mult,
-        model_version=model_version
+        model_version=model_version,
+        is_surging=is_surging
     )
 
 @app.post("/feedback")
@@ -279,7 +321,16 @@ async def explain_prediction(req: OrderInferenceRequest):
     # SHAP explainer requires gradients
     MODEL.train()
     
+    is_surging = False # Default for explanation response
     try:
+        # Check if already surging for explanation response
+        if REDIS_CLIENT.get(f"surge:{req.restaurant_id}"):
+            is_surging = True
+    except Exception:
+        pass
+
+    try:
+
         # SHAP cannot differentiate through an Embedding lookup (which requires Long indices).
         # We wrap the model to hardcode the restaurant index and explain the continuous features only.
         class ExplainWrapper(torch.nn.Module):
@@ -322,20 +373,29 @@ async def explain_prediction(req: OrderInferenceRequest):
         for i in range(min(3, len(sorted_factors))):
             k, v = sorted_factors[i]
             key_factors.append(f"{k} ({'+' if v>0 else ''}{round(v, 2)})")
+            
+        MODEL.eval()
+        return ExplainResponse(
+            order_id=req.order_id,
+            prediction_p95=round(float(p95), 2),
+            feature_importance_shap=shap_dict,
+            key_factors=key_factors,
+            is_surging=is_surging
+        )
         
     except Exception as e:
         print(f"SHAP Warning: {e}")
         shap_dict = {"fallback_error": 0.0}
         key_factors = ["Explainer fallback - Mocked Drivers", "Queue High"]
         
-    MODEL.eval()
-
-    return ExplainResponse(
-        order_id=req.order_id,
-        prediction_p95=round(p95, 2),
-        feature_importance_shap=shap_dict,
-        key_factors=key_factors
-    )
+        MODEL.eval()
+        return ExplainResponse(
+            order_id=req.order_id,
+            prediction_p95=round(float(p95), 2),
+            feature_importance_shap=shap_dict,
+            key_factors=key_factors,
+            is_surging=is_surging
+        )
 
 if __name__ == "__main__":
     import uvicorn
