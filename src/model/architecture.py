@@ -42,8 +42,8 @@ class DeepSide(nn.Module):
 class DeepPrepModel(nn.Module):
     def __init__(self, num_restaurants: int):
         super().__init__()
-        # 4 cyclic + 3 emb + 3 M/M/c queue features = 10 features
-        self.wide = WideSide(num_restaurants=num_restaurants, restaurant_emb_dim=8, other_wide_features=10) 
+        # 4 cyclic + 3 emb = 7 features (weights expect 15: 8 emb_dim + 7)
+        self.wide = WideSide(num_restaurants=num_restaurants, restaurant_emb_dim=8, other_wide_features=7) 
         self.deep = DeepSide(seq_feature_dim=1, hidden_size=32)
         
         # Combine the wide and deep outputs

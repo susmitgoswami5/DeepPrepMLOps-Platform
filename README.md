@@ -42,8 +42,15 @@ These simulation outputs are injected perfectly into the PyTorch Neural Network 
 
 ## 🚀 Running the Project Locally
 
-### 1. Start the Live Prediction API
+### 1. Start Redis (Required for Feast Online Store & State Management)
 ```bash
+docker run -d -p 6379:6379 --name feast-redis redis:alpine
+```
+
+### 2. Start the Live Prediction API
+```bash
+# Ensure you are passing the Redis Host if not localhost
+export FEAST_REDIS_HOST=localhost
 uvicorn src.api.router:app --host 0.0.0.0 --port 8000 --reload
 ```
 Access the interactive Swagger documentation at `http://localhost:8000/docs`

@@ -86,7 +86,7 @@ class ExplainResponse(BaseModel):
 
 @app.on_event("startup")
 async def startup_event():
-    global MODEL, R2I
+    global MODEL, CHALLENGER_MODEL, R2I, FS, BG_DISTS
     
     # Load Mapping
     mapping_path = "models/restaurant_mapping.json"
@@ -119,7 +119,7 @@ async def startup_event():
     # Init SHAP Backgrounds (mocked 10 sample distribution)
     torch.manual_seed(42)
     BG_DISTS["r"] = torch.randint(0, len(R2I) if R2I else 20, (10,), dtype=torch.long)
-    BG_DISTS["w"] = torch.randn(10, 10, dtype=torch.float32)
+    BG_DISTS["w"] = torch.randn(10, 7, dtype=torch.float32)
     BG_DISTS["s"] = torch.randn(10, 3, 1, dtype=torch.float32) * 5.0
     
     print("Model Loaded for Inference!")
@@ -170,7 +170,7 @@ async def predict_fpt(req: OrderInferenceRequest):
     
     # 6. Construct Tensors
     r_tensor = torch.tensor([rest_idx], dtype=torch.long)
-    w_tensor = torch.tensor([[hour_sin, hour_cos, day_sin, day_cos, avg_emb[0], avg_emb[1], avg_emb[2], utilization, wait_time, queue_length]], dtype=torch.float32)
+    w_tensor = torch.tensor([[hour_sin, hour_cos, day_sin, day_cos, avg_emb[0], avg_emb[1], avg_emb[2]]], dtype=torch.float32)
     s_tensor = torch.tensor([[[load_15], [load_30], [load_60]]], dtype=torch.float32)
     
     # 7. A/B Testing Router & Forward Pass
@@ -191,7 +191,11 @@ async def predict_fpt(req: OrderInferenceRequest):
     p50, p90, p95 = preds[0].tolist()
     
     # Apply Self-Correcting Stress Multiplier if applicable
-    stress_val = REDIS_CLIENT.get(f"stress:{req.restaurant_id}")
+    try:
+        stress_val = REDIS_CLIENT.get(f"stress:{req.restaurant_id}")
+    except Exception as e:
+        # Fallback if Redis is unreachable
+        stress_val = None
     stress_mult = float(stress_val) if stress_val else 1.0
     
     p50 *= stress_mult
@@ -265,7 +269,7 @@ async def explain_prediction(req: OrderInferenceRequest):
     utilization, wait_time, queue_length = calculate_mmc_metrics(lambda_val, 15.0, c_val)
     
     r_tensor = torch.tensor([rest_idx], dtype=torch.long)
-    w_tensor = torch.tensor([[hour_sin, hour_cos, day_sin, day_cos, avg_emb[0], avg_emb[1], avg_emb[2], utilization, wait_time, queue_length]], dtype=torch.float32)
+    w_tensor = torch.tensor([[hour_sin, hour_cos, day_sin, day_cos, avg_emb[0], avg_emb[1], avg_emb[2]]], dtype=torch.float32)
     s_tensor = torch.tensor([[[load_15], [load_30], [load_60]]], dtype=torch.float32)
     
     with torch.no_grad():
@@ -276,26 +280,41 @@ async def explain_prediction(req: OrderInferenceRequest):
     MODEL.train()
     
     try:
-        explainer = shap.GradientExplainer(MODEL, [BG_DISTS["r"], BG_DISTS["w"], BG_DISTS["s"]])
-        shap_values = explainer.shap_values([r_tensor, w_tensor.requires_grad_(), s_tensor.requires_grad_()])
+        # SHAP cannot differentiate through an Embedding lookup (which requires Long indices).
+        # We wrap the model to hardcode the restaurant index and explain the continuous features only.
+        class ExplainWrapper(torch.nn.Module):
+            def __init__(self, model, r_in):
+                super().__init__()
+                self.model = model
+                self.r_in = r_in
+            def forward(self, w, s):
+                # Expand the hardcoded restaurant tensor to match the batch dimension of w (which SHAP might provide as size 10 or 1)
+                bsz = w.size(0)
+                expanded_r = self.r_in.expand(bsz)
+                return self.model(expanded_r, w, s)
+                
+        wrapped_model = ExplainWrapper(MODEL, r_tensor)
+        explainer = shap.GradientExplainer(wrapped_model, [BG_DISTS["w"], BG_DISTS["s"]])
         
-        # shap_values is a list of arrays per quantile output. We index 2 for P95 target.
-        # Inside that, it's a tuple of arrays matching the inputs (r, w, s).
-        p95_shap = shap_values[2] # 3rd output head
-        w_shaps = p95_shap[1][0]  # Wide features importances for the first batch item
-        s_shaps = p95_shap[2][0].flatten() # Seq features importances
+        # Pass float inputs to explainer
+        shap_values = explainer.shap_values([w_tensor.requires_grad_(), s_tensor.requires_grad_()])
+        
+        # shap_values is a list of arrays mapping to the inputs [w, s].
+        # For multi-output PyTorch models, shap sometimes sums or averages across outputs if not specified.
+        # w is at index 0, s is at index 1.
+        w_shaps = shap_values[0][0]  # Wide features importances for the first batch item
+        s_shaps = shap_values[1][0].flatten() # Seq features importances
         
         feature_names = [
             "hour_sin", "hour_cos", "day_sin", "day_cos", 
             "item_embed_0", "item_embed_1", "item_embed_2", 
-            "cook_utilization", "queue_wait_time", "orders_in_queue",
             "load_15m", "load_30m", "load_60m"
         ]
         
-        importances = list(w_shaps) + list(s_shaps)
+        importances = [float(x) for x in list(w_shaps.flatten()) + list(s_shaps.flatten())]
         
         # Map values
-        shap_dict = {name: float(imp) for name, imp in zip(feature_names, importances)}
+        shap_dict = {name: imp for name, imp in zip(feature_names, importances)}
         
         # Sort factors by absolute magnitude to find key ones
         sorted_factors = sorted(shap_dict.items(), key=lambda x: abs(x[1]), reverse=True)
