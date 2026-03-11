@@ -7,6 +7,7 @@ import json
 import polars as pl
 from typing import List, Dict
 from datetime import datetime
+import redis
 from prometheus_client import make_asgi_app, Counter, Histogram
 import shap
 
@@ -35,7 +36,7 @@ CHALLENGER_MODEL = None # Loaded for A/B testing 50/50 split
 R2I = {}
 FS = None
 # "Self-Correcting" stress factor
-RESTAURANT_STRESS = {}
+REDIS_CLIENT = redis.Redis(host=os.getenv("FEAST_REDIS_HOST", "localhost"), port=6379, db=0, decode_responses=True)
 # SHAP Background distributions
 BG_DISTS = {}
 
@@ -173,8 +174,7 @@ async def predict_fpt(req: OrderInferenceRequest):
     s_tensor = torch.tensor([[[load_15], [load_30], [load_60]]], dtype=torch.float32)
     
     # 7. A/B Testing Router & Forward Pass
-    import random
-    if random.random() < 0.5:
+    if hash(req.order_id) % 2 == 0:
         # Route to Champion
         active_model = MODEL
         model_version = "champion"
@@ -191,7 +191,8 @@ async def predict_fpt(req: OrderInferenceRequest):
     p50, p90, p95 = preds[0].tolist()
     
     # Apply Self-Correcting Stress Multiplier if applicable
-    stress_mult = RESTAURANT_STRESS.get(req.restaurant_id, 1.0)
+    stress_val = REDIS_CLIENT.get(f"stress:{req.restaurant_id}")
+    stress_mult = float(stress_val) if stress_val else 1.0
     
     p50 *= stress_mult
     p90 *= stress_mult
@@ -212,18 +213,24 @@ async def register_feedback(feedback: BreachFeedback):
     Simulates an MLOps feedback loop. 
     If actual FPT > predicted P95, we mark a breach and increase the stress factor for that restaurant.
     """
+    stress_key = f"stress:{feedback.restaurant_id}"
+    stress_val = REDIS_CLIENT.get(stress_key)
+    current_stress = float(stress_val) if stress_val else 1.0
+    
     if feedback.actual_fpt > feedback.predicted_p95:
         BREACH_COUNT.labels(restaurant_id=feedback.restaurant_id).inc()
-        current_stress = RESTAURANT_STRESS.get(feedback.restaurant_id, 1.0)
         # Apply a temporary +5% buffer to this restaurant
-        RESTAURANT_STRESS[feedback.restaurant_id] = min(current_stress * 1.05, 1.50) # Cap at 1.5x
-        return {"status": "breach registered", "new_stress_multiplier": RESTAURANT_STRESS[feedback.restaurant_id]}
+        new_stress = min(current_stress * 1.05, 1.50) # Cap at 1.5x
+        REDIS_CLIENT.set(stress_key, new_stress)
+        return {"status": "breach registered", "new_stress_multiplier": new_stress}
     else:
         # if not breaching, slowly cool down the stress multiplier
-        current_stress = RESTAURANT_STRESS.get(feedback.restaurant_id, 1.0)
+        new_stress = current_stress
         if current_stress > 1.0:
-            RESTAURANT_STRESS[feedback.restaurant_id] = max(current_stress * 0.99, 1.0)
-        return {"status": "ok", "new_stress_multiplier": RESTAURANT_STRESS[feedback.restaurant_id]}
+            new_stress = max(current_stress * 0.99, 1.0)
+            REDIS_CLIENT.set(stress_key, new_stress)
+        return {"status": "ok", "new_stress_multiplier": new_stress}
+
 
 @app.post("/explain", response_model=ExplainResponse)
 async def explain_prediction(req: OrderInferenceRequest):
@@ -313,4 +320,4 @@ async def explain_prediction(req: OrderInferenceRequest):
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("src.serving.api:app", host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run("src.api.router:app", host="0.0.0.0", port=8000, reload=True)

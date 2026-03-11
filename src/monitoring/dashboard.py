@@ -5,11 +5,13 @@ import random
 from datetime import datetime
 import pandas as pd
 import pathlib
+import os
 
 # Configuration
-API_URL_PREDICT = "http://127.0.0.1:8000/predict"
-API_URL_EXPLAIN = "http://127.0.0.1:8000/explain"
-API_URL_METRICS = "http://127.0.0.1:8000/metrics"
+API_URL = os.getenv("API_URL", "http://127.0.0.1:8000")
+API_URL_PREDICT = f"{API_URL}/predict"
+API_URL_EXPLAIN = f"{API_URL}/explain"
+API_URL_METRICS = f"{API_URL}/metrics"
 
 st.set_page_config(layout="wide", page_title="DeepPrep ML Platform Insight")
 

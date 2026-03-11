@@ -73,10 +73,10 @@ def append_queue_features(df: pl.DataFrame) -> pl.DataFrame:
         )
     )
     
-    df = df.with_columns([
-        pl.Series("cook_utilization", metrics.map_elements(lambda x: x[0], return_dtype=pl.Float64)),
-        pl.Series("queue_wait_time_m", metrics.map_elements(lambda x: x[1], return_dtype=pl.Float64)),
-        pl.Series("orders_in_queue", metrics.map_elements(lambda x: x[2], return_dtype=pl.Float64))
-    ])
+    df = df.with_columns(
+        cook_utilization=metrics["column_0"],
+        queue_wait_time_m=metrics["column_1"],
+        orders_in_queue=metrics["column_2"]
+    )
     
     return df

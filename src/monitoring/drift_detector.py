@@ -6,7 +6,8 @@ import polars as pl
 
 try:
     from evidently.report import Report
-    from evidently.metric_preset import DataDriftPreset, TargetDriftPreset
+    from evidently.presets import DataDriftPreset
+    from evidently.metrics import ValueDrift
     EVIDENTLY_AVAILABLE = True
 except Exception as e:
     EVIDENTLY_AVAILABLE = False
@@ -76,10 +77,10 @@ def generate_drift_report():
     ]
     
     report = Report(metrics=[
-        DataDriftPreset(num_features=numerical_features),
+        DataDriftPreset(columns=numerical_features),
         # Assuming our model outputs 'prediction' and ground truth is 'target_fpt_minutes' (which we treat as the target)
         # Note: If ground truth is not available in real-time, target drift is usually monitored on prediction distributions
-        TargetDriftPreset() 
+        ValueDrift(column="target_fpt_minutes") 
     ])
     
     # In evidently, target must be defined in column mapping if names differ

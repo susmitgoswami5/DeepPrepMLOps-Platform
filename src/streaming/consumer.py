@@ -1,6 +1,11 @@
 import json
 import requests
+import os
+import redis
 from confluent_kafka import Consumer, KafkaException
+
+REDIS_CLIENT = redis.Redis(host=os.getenv("FEAST_REDIS_HOST", "localhost"), port=6379, db=0, decode_responses=True)
+
 
 # Kafka config
 KAFKA_BROKER = 'localhost:9092'
@@ -13,9 +18,13 @@ def process_order(msg_val):
     print("--------------------------------------------------")
     print(f"Received Event: {msg_val['event_type']} - Order {msg_val['order_id']}")
     
-    # Normally, another consumer path would push this event to Feast/Redis online store
-    # to increment the `load_15m` count. For demonstration, we assume real-time
-    # features are already updated in Feast and accessible by the FastAPI endpoint.
+    if msg_val.get('event_type') == 'ORDER_PLACED':
+        r_id = msg_val['restaurant_id']
+        # Increment rolling counters in Redis
+        REDIS_CLIENT.incr(f"{r_id}:load_15m")
+        REDIS_CLIENT.incr(f"{r_id}:load_30m")
+        REDIS_CLIENT.incr(f"{r_id}:load_60m")
+
     
     inference_payload = {
         "order_id": msg_val["order_id"],

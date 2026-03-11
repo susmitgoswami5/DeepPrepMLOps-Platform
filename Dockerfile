@@ -22,4 +22,4 @@ ENV PYTHONPATH=/app
 EXPOSE 8000
 
 # Run API server
-CMD ["uvicorn", "src.serving.api:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["uvicorn", "src.api.router:app", "--host", "0.0.0.0", "--port", "8000"]
