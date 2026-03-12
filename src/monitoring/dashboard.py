@@ -69,6 +69,17 @@ if st.sidebar.button("Simulate Incoming Order Stream"):
             df_shap = pd.DataFrame(list(shap_dict.items()), columns=['Feature', 'SHAP Value'])
             st.bar_chart(df_shap.set_index('Feature'))
             
+            # --- AI OPERATIONS COPILOT ---
+            st.write("---")
+            st.header("💬 AI Operations Copilot")
+            try:
+                copilot_res = requests.post(f"{API_URL}/copilot", json=explain_data, timeout=5)
+                copilot_res.raise_for_status()
+                narrative = copilot_res.json()["narrative"]
+                st.info(narrative)
+            except Exception as e:
+                st.warning(f"Copilot NLG Service unavailable: {e}")
+            
         except requests.exceptions.RequestException as e:
             st.error(f"API Error. Is FastAPI running? Details: {e}")
 

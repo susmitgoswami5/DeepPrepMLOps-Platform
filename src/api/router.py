@@ -4,6 +4,7 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 import torch
 import json
+import math
 import polars as pl
 from typing import List, Dict
 from datetime import datetime
@@ -75,13 +76,17 @@ class BreachFeedback(BaseModel):
     restaurant_id: str
     actual_fpt: float
     predicted_p95: float
+    created_at: str
+    items: List[str]
     
     class Config:
         schema_extra = {
             "example": {
                 "restaurant_id": "R005",
                 "actual_fpt": 35.5,
-                "predicted_p95": 30.4
+                "predicted_p95": 30.4,
+                "created_at": "2024-03-10T19:30:00",
+                "items": ["Burger"]
             }
         }
 
@@ -213,9 +218,19 @@ async def predict_fpt(req: OrderInferenceRequest):
         stress_val = None
     stress_mult = float(stress_val) if stress_val else 1.0
     
-    p50 *= stress_mult
-    p90 *= stress_mult
-    p95 *= stress_mult
+    # 8. LIVE WEATHER STREAM - Geospatial Condition Augmentation
+    try:
+        weather_sev = REDIS_CLIENT.get("city_weather_severity")
+    except Exception as e:
+        weather_sev = None
+    w_mult = (1.0 + float(weather_sev)) if weather_sev else 1.0
+    
+    # Accumulate dynamic multipliers natively
+    total_mult = stress_mult * w_mult
+    
+    p50 *= total_mult
+    p90 *= total_mult
+    p95 *= total_mult
     
     # --- ACTIVE SURGE CONTROL LOOP ---
     is_surging = False
@@ -256,26 +271,73 @@ async def predict_fpt(req: OrderInferenceRequest):
 @app.post("/feedback")
 async def register_feedback(feedback: BreachFeedback):
     """
-    Simulates an MLOps feedback loop. 
-    If actual FPT > predicted P95, we mark a breach and increase the stress factor for that restaurant.
+    Simulates an MLOps Continuous Training loop. 
+    1. If actual FPT > predicted P95, we mark a breach and increase the stress factor for that restaurant.
+    2. We perform a live stochastic gradient descent step (micro-training) on the Champion model 
+       to 'self-heal' towards the true output.
     """
     stress_key = f"stress:{feedback.restaurant_id}"
     stress_val = REDIS_CLIENT.get(stress_key)
     current_stress = float(stress_val) if stress_val else 1.0
     
+    new_stress = current_stress # Initialize new_stress
     if feedback.actual_fpt > feedback.predicted_p95:
         BREACH_COUNT.labels(restaurant_id=feedback.restaurant_id).inc()
         # Apply a temporary +5% buffer to this restaurant
         new_stress = min(current_stress * 1.05, 1.50) # Cap at 1.5x
         REDIS_CLIENT.set(stress_key, new_stress)
-        return {"status": "breach registered", "new_stress_multiplier": new_stress}
-    else:
-        # if not breaching, slowly cool down the stress multiplier
-        new_stress = current_stress
-        if current_stress > 1.0:
-            new_stress = max(current_stress * 0.99, 1.0)
-            REDIS_CLIENT.set(stress_key, new_stress)
-        return {"status": "ok", "new_stress_multiplier": new_stress}
+        
+    try:
+        # --- ACTIVE MICRO-TRAINING (Self-Healing) ---
+        dt = datetime.fromisoformat(feedback.created_at)
+        day_of_week = dt.weekday()
+        hour = dt.hour + dt.minute / 60.0
+        
+        day_sin = math.sin(2 * math.pi * day_of_week / 7.0)
+        day_cos = math.cos(2 * math.pi * day_of_week / 7.0)
+        hour_sin = math.sin(2 * math.pi * hour / 24.0)
+        hour_cos = math.cos(2 * math.pi * hour / 24.0)
+        
+        # We need the items to recreate the embedding
+        avg_emb = get_mock_embedding(feedback.items) if hasattr(feedback, 'items') and feedback.items else [0.0, 0.0, 0.0]
+        
+        # Fetch Feast state (approximated for feedback loop simplicity)
+        rest_idx = R2I.get(feedback.restaurant_id, 0)
+        
+        r_tensor = torch.tensor([rest_idx], dtype=torch.long)
+        w_tensor = torch.tensor([[hour_sin, hour_cos, day_sin, day_cos, avg_emb[0], avg_emb[1], avg_emb[2]]], dtype=torch.float32)
+        s_tensor = torch.tensor([[[0.0], [0.0], [0.0]]], dtype=torch.float32) # Simplified for feedback
+        
+        # Forward pass on Champion
+        MODEL.train()
+        optimizer = torch.optim.SGD(MODEL.parameters(), lr=1e-4) # Very low LR for safety
+        
+        optimizer.zero_grad()
+        preds = MODEL(r_tensor, w_tensor, s_tensor)
+        
+        # Loss against Actual FPT
+        actual_tensor = torch.tensor([[feedback.actual_fpt, feedback.actual_fpt, feedback.actual_fpt]], dtype=torch.float32)
+
+        # MSE Loss
+        loss = torch.nn.functional.mse_loss(preds, actual_tensor)
+        loss.backward()
+        
+        # Gradient Clipping to prevent explosion from one bad outlier
+        torch.nn.utils.clip_grad_norm_(MODEL.parameters(), max_norm=1.0)
+        optimizer.step()
+        
+        print(f"🧠 [SELF-HEAL] Optimization step complete. Loss: {loss.item():.4f} -> Weights Updated for {feedback.restaurant_id}")
+        MODEL.eval()
+        
+    except Exception as e:
+        print(f"⚠️ Micro-training step failed: {e}")
+
+    # if not breaching, slowly cool down the stress multiplier
+    if feedback.actual_fpt <= feedback.predicted_p95 and current_stress > 1.0:
+        new_stress = max(current_stress * 0.99, 1.0)
+        REDIS_CLIENT.set(stress_key, new_stress)
+        
+    return {"status": "feedback_registered", "new_stress_multiplier": new_stress}
 
 
 @app.post("/explain", response_model=ExplainResponse)
@@ -396,6 +458,79 @@ async def explain_prediction(req: OrderInferenceRequest):
             key_factors=key_factors,
             is_surging=is_surging
         )
+class CopilotResponse(BaseModel):
+    narrative: str
+
+@app.post("/copilot", response_model=CopilotResponse)
+async def generate_copilot_explanation(explain_data: ExplainResponse):
+    """
+    Template-Based Natural Language Generation (NLG) 
+    Simulates a lightweight LLM acting as an Operations Copilot.
+    Translates raw SHAP math into actionable restaurant operations insights without requiring external OpenAI API keys.
+    """
+    # Base starting phrase
+    if explain_data.prediction_p95 < 15.0:
+        base = f"Order **{explain_data.order_id}** is on a fast track (ETA: {explain_data.prediction_p95}m)."
+    elif explain_data.prediction_p95 < 30.0:
+        base = f"Order **{explain_data.order_id}** is operating under normal kitchen load (ETA: {explain_data.prediction_p95}m)."
+    else:
+        base = f"⚠️ Order **{explain_data.order_id}** is significantly delayed (ETA: {explain_data.prediction_p95}m)."
+
+    if explain_data.is_surging:
+        base += " 🚨 **SURGE PROTOCOLS ARE CURRENTLY ACTIVE ON THIS RESTAURANT!**"
+
+    # Analyze SHAP drivers
+    positive_drivers = []
+    negative_drivers = [] # Negative SHAP means it *reduced* prep time
+    
+    for feature, shap_val in explain_data.feature_importance_shap.items():
+        if feature == "fallback_error": continue
+        if shap_val > 0.1:
+            positive_drivers.append(feature)
+        elif shap_val < -0.1:
+            negative_drivers.append(feature)
+            
+    # Translation Dictionary
+    t_map = {
+        "load_15m": "a sudden spike in orders over the last 15 minutes",
+        "load_30m": "sustained high grilling station utilization over the past half-hour",
+        "load_60m": "an overwhelming backlog of tickets from the last hour",
+        "hour_sin": "the current time of day",
+        "hour_cos": "the current time of day",
+        "day_sin": "the current day of the week",
+        "day_cos": "the current day of the week",
+        "item_embed_0": "the complexity of the specific items ordered (e.g., highly customized menu items)",
+        "item_embed_1": "item prep requirements touching multiple kitchen stations",
+        "item_embed_2": "items requiring extended oven/grill time"
+    }
+
+    # Synthesize explanation
+    insight = " "
+    if positive_drivers:
+        insight += f"This delay is primarily being driven up by **{t_map.get(positive_drivers[0], positive_drivers[0])}**"
+        if len(positive_drivers) > 1:
+            insight += f" and compounded by **{t_map.get(positive_drivers[1], positive_drivers[1])}**."
+        else:
+            insight += "."
+    else:
+        if explain_data.prediction_p95 > 25.0:
+             insight += " The AI is detecting general baseline friction, though no specific micro-factor is blowing up."
+
+    if negative_drivers and explain_data.prediction_p95 < 20.0:
+        insight += f" Prep time was successfully reduced thanks to **{t_map.get(negative_drivers[0], negative_drivers[0])}** helping clear the queue quickly."
+
+    if not positive_drivers and not negative_drivers and "fallback_error" in explain_data.feature_importance_shap:
+        insight += " *(Note: Detailed mathematical breakdown is unavailable right now due to an explainer fallback state.)*"
+
+    action = ""
+    if explain_data.is_surging:
+        action = "\n\n**Copilot Recommendation:** Demand generation should remain throttled until the 60-minute trailing load drops significantly."
+    elif "load_15m" in positive_drivers:
+        action = "\n\n**Copilot Recommendation:** Ensure all cooks are on the line. A sudden rush just hit."
+
+    final_narrative = f"{base}{insight}{action}"
+
+    return CopilotResponse(narrative=final_narrative.strip())
 
 if __name__ == "__main__":
     import uvicorn
