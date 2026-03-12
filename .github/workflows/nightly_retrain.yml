@@ -1,0 +1,59 @@
+name: "🔄 Nightly Model Retrain & Auto-Deploy"
+
+on:
+  schedule:
+    # Run every day at 2:00 AM UTC
+    - cron: '0 2 * * *'
+  workflow_dispatch: # Allow manual trigger from GitHub UI
+
+env:
+  PYTHON_VERSION: '3.10'
+  MODEL_DIR: 'models'
+  CHAMPION_PATH: 'models/deep_prep_model.pt'
+
+jobs:
+  retrain:
+    name: "Retrain PyTorch Model"
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: "📥 Checkout Repository"
+        uses: actions/checkout@v4
+
+      - name: "🐍 Setup Python ${{ env.PYTHON_VERSION }}"
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: 'pip'
+
+      - name: "📦 Install Dependencies"
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: "🧠 Execute Nightly Retraining"
+        run: |
+          python scripts/retrain.py
+
+      - name: "🧪 Validate New Model Against Champion"
+        id: validate
+        run: |
+          python scripts/validate_model.py
+        continue-on-error: false
+
+      - name: "🚀 Auto-Deploy If Validation Passes"
+        if: success()
+        run: |
+          echo "✅ New model passed validation gate."
+          echo "📦 Promoting new model to Champion..."
+          cp models/challenger_model.pt models/deep_prep_model.pt
+          echo "🎉 Champion model updated successfully."
+
+      - name: "💾 Commit Updated Weights"
+        if: success()
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add models/
+          git diff --cached --quiet || git commit -m "chore(model): auto-deploy retrained champion [nightly CI/CD]"
+          git push

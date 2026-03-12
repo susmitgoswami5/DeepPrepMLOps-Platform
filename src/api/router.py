@@ -25,12 +25,22 @@ metrics_app = make_asgi_app()
 app.mount("/metrics", metrics_app)
 
 PREDICTION_COUNT = Counter("fpt_predictions_total", "Total FPT predictions served")
-# In real life we'd track error vs actual, we will add a mock metric here
 BREACH_COUNT = Counter("fpt_breaches_total", "Count of orders breaching predicted p95 FPT", ["restaurant_id"])
 
 # A/B Testing Tracking
 TRAFFIC_CHAMPION_COUNT = Counter("fpt_champion_served_total", "Total requests routed to Champion")
 TRAFFIC_CHALLENGER_COUNT = Counter("fpt_challenger_served_total", "Total requests routed to Challenger")
+
+# Shadow Deployment Metrics
+SHADOW_DELTA_HISTOGRAM = Histogram(
+    "shadow_p95_delta_minutes",
+    "Distribution of p95 delta between Champion and Challenger (shadow)",
+    buckets=[0.5, 1.0, 2.0, 5.0, 10.0, 20.0, 50.0]
+)
+SHADOW_RUN_COUNT = Counter("shadow_runs_total", "Total shadow inference passes executed")
+
+# In-memory ring buffer for the shadow report (last 50 comparisons)
+SHADOW_LOG = []
 
 # 1. Global State
 MODEL = None
@@ -38,7 +48,19 @@ CHALLENGER_MODEL = None # Loaded for A/B testing 50/50 split
 R2I = {}
 FS = None
 # "Self-Correcting" stress factor
-REDIS_CLIENT = redis.Redis(host=os.getenv("FEAST_REDIS_HOST", "localhost"), port=6379, db=0, decode_responses=True)
+try:
+    REDIS_CLIENT = redis.Redis(host=os.getenv("FEAST_REDIS_HOST", "localhost"), port=6379, db=0, decode_responses=True)
+    REDIS_CLIENT.ping()  # Test if Redis is actually reachable
+except Exception:
+    # Fallback: create a mock-like object that returns None for all gets
+    class _FallbackRedis:
+        def get(self, *a): return None
+        def set(self, *a): return None
+        def setex(self, *a): return None
+        def delete(self, *a): return None
+        def ping(self): return True
+    REDIS_CLIENT = _FallbackRedis()
+    print("⚠️ Redis unavailable — running with in-memory fallback")
 
 # Kafka Producer config
 KAFKA_BROKER = os.getenv("KAFKA_BROKER", "localhost:9092")
@@ -193,28 +215,48 @@ async def predict_fpt(req: OrderInferenceRequest):
     w_tensor = torch.tensor([[hour_sin, hour_cos, day_sin, day_cos, avg_emb[0], avg_emb[1], avg_emb[2]]], dtype=torch.float32)
     s_tensor = torch.tensor([[[load_15], [load_30], [load_60]]], dtype=torch.float32)
     
-    # 7. A/B Testing Router & Forward Pass
-    if hash(req.order_id) % 2 == 0:
-        # Route to Champion
-        active_model = MODEL
-        model_version = "champion"
-        TRAFFIC_CHAMPION_COUNT.inc()
-    else:
-        # Route to Challenger
-        active_model = CHALLENGER_MODEL
-        model_version = "challenger"
-        TRAFFIC_CHALLENGER_COUNT.inc()
+    # 7. SHADOW DEPLOYMENT ROUTER
+    # The Champion ALWAYS serves the live prediction to the user.
+    # The Challenger runs silently in the background ("shadow mode").
+    # We log the p95 delta to Prometheus so we can mathematically prove
+    # the Challenger is safe before promoting it.
+    TRAFFIC_CHAMPION_COUNT.inc()
+    model_version = "champion"
         
     with torch.no_grad():
-        preds = active_model(r_tensor, w_tensor, s_tensor)
+        preds = MODEL(r_tensor, w_tensor, s_tensor)
         
     p50, p90, p95 = preds[0].tolist()
+    
+    # --- SHADOW PASS (Silent Challenger Inference) ---
+    shadow_p95 = None
+    try:
+        with torch.no_grad():
+            shadow_preds = CHALLENGER_MODEL(r_tensor, w_tensor, s_tensor)
+        shadow_p95 = shadow_preds[0][2].item()
+        
+        delta = abs(p95 - shadow_p95)
+        SHADOW_DELTA_HISTOGRAM.observe(delta)
+        SHADOW_RUN_COUNT.inc()
+        TRAFFIC_CHALLENGER_COUNT.inc()
+        
+        # Keep last 50 comparisons in memory for the /shadow-report endpoint
+        SHADOW_LOG.append({
+            "order_id": req.order_id,
+            "champion_p95": round(p95, 2),
+            "challenger_p95": round(shadow_p95, 2),
+            "delta": round(delta, 2),
+            "timestamp": datetime.utcnow().isoformat()
+        })
+        if len(SHADOW_LOG) > 50:
+            SHADOW_LOG.pop(0)
+    except Exception as e:
+        print(f"⚡ Shadow pass skipped: {e}")
     
     # Apply Self-Correcting Stress Multiplier if applicable
     try:
         stress_val = REDIS_CLIENT.get(f"stress:{req.restaurant_id}")
     except Exception as e:
-        # Fallback if Redis is unreachable
         stress_val = None
     stress_mult = float(stress_val) if stress_val else 1.0
     
@@ -235,17 +277,14 @@ async def predict_fpt(req: OrderInferenceRequest):
     # --- ACTIVE SURGE CONTROL LOOP ---
     is_surging = False
     try:
-        # Check if already surging
         if REDIS_CLIENT.get(f"surge:{req.restaurant_id}"):
             is_surging = True
         
-        # Trigger surge if threshold breached and not already surging
         if p95 > SURGE_THRESHOLD_MINUTES and not is_surging:
             is_surging = True
-            REDIS_CLIENT.setex(f"surge:{req.restaurant_id}", 300, "1") # 5 min TTL
+            REDIS_CLIENT.setex(f"surge:{req.restaurant_id}", 300, "1")
             print(f"🚨 SURGE ACTIVATED for {req.restaurant_id} (ETA: {p95:.1f}m)")
             
-            # Broadcast to logistics network via Kafka
             if KAFKA_PRODUCER:
                 event = {
                     "event_type": "SURGE_ACTIVATED",
@@ -256,7 +295,7 @@ async def predict_fpt(req: OrderInferenceRequest):
                 KAFKA_PRODUCER.produce("restaurant_events", value=json.dumps(event).encode("utf-8"))
                 KAFKA_PRODUCER.poll(0)
     except Exception as e:
-        pass # Graceful degradation if Redis/Kafka fails
+        pass
         
     return FPTPrediction(
         order_id=req.order_id,
@@ -267,6 +306,34 @@ async def predict_fpt(req: OrderInferenceRequest):
         model_version=model_version,
         is_surging=is_surging
     )
+
+
+@app.get("/shadow-report")
+async def shadow_report():
+    """
+    Returns the live Shadow Deployment comparison report.
+    Shows the last 50 Champion vs Challenger inferences and their p95 deltas.
+    Use this to decide when the Challenger is safe to promote.
+    """
+    if not SHADOW_LOG:
+        return {"status": "no_shadow_data", "message": "No shadow inferences have been recorded yet."}
+    
+    deltas = [entry["delta"] for entry in SHADOW_LOG]
+    avg_delta = sum(deltas) / len(deltas)
+    max_delta = max(deltas)
+    
+    # Auto-promotion recommendation
+    safe_to_promote = avg_delta < 2.0 and max_delta < 5.0
+    
+    return {
+        "status": "shadow_active",
+        "total_shadow_runs": len(SHADOW_LOG),
+        "avg_p95_delta_minutes": round(avg_delta, 3),
+        "max_p95_delta_minutes": round(max_delta, 3),
+        "auto_promote_safe": safe_to_promote,
+        "recommendation": "✅ Challenger is SAFE to promote" if safe_to_promote else "⚠️ Challenger is DRIFTING — do NOT promote yet",
+        "recent_comparisons": SHADOW_LOG[-10:]
+    }
 
 @app.post("/feedback")
 async def register_feedback(feedback: BreachFeedback):

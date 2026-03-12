@@ -78,3 +78,122 @@ INFO:     127.0.0.1:52511 - "GET /metrics HTTP/1.1" 307 Temporary Redirect
 INFO:     127.0.0.1:52511 - "GET /metrics/ HTTP/1.1" 200 OK
 INFO:     127.0.0.1:52966 - "GET /metrics HTTP/1.1" 307 Temporary Redirect
 INFO:     127.0.0.1:52966 - "GET /metrics/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56470 - "GET /metrics HTTP/1.1" 307 Temporary Redirect
+INFO:     127.0.0.1:56470 - "GET /metrics/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56471 - "GET /metrics HTTP/1.1" 307 Temporary Redirect
+INFO:     127.0.0.1:56471 - "GET /metrics/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56472 - "GET /metrics HTTP/1.1" 307 Temporary Redirect
+INFO:     127.0.0.1:56472 - "GET /metrics/ HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56473 - "POST /explain HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:56479 - "GET /docs HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56479 - "GET /openapi.json HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56481 - "POST /predict HTTP/1.1" 500 Internal Server Error
+ERROR:    Exception in ASGI application
+Traceback (most recent call last):
+  File "/Users/susmitgoswami/Downloads/untitled folder 2/venv/lib/python3.14/site-packages/uvicorn/protocols/http/h11_impl.py", line 410, in run_asgi
+        await self.send_500_response()
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+    else:
+    ^^^^^
+        self.transport.close()
+    
+  File "/Users/susmitgoswami/Downloads/untitled folder 2/venv/lib/python3.14/site-packages/uvicorn/middleware/proxy_headers.py", line 60, in __call__
+    return await self.app(scope, receive, send)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/susmitgoswami/Downloads/untitled folder 2/venv/lib/python3.14/site-packages/fastapi/applications.py", line 1160, in __call__
+    await super().__call__(scope, receive, send)
+  File "/Users/susmitgoswami/Downloads/untitled folder 2/venv/lib/python3.14/site-packages/starlette/applications.py", line 107, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "/Users/susmitgoswami/Downloads/untitled folder 2/venv/lib/python3.14/site-packages/starlette/middleware/errors.py", line 186, in __call__
+    raise exc
+  File "/Users/susmitgoswami/Downloads/untitled folder 2/venv/lib/python3.14/site-packages/starlette/middleware/errors.py", line 164, in __call__
+    await self.app(scope, receive, _send)
+  File "/Users/susmitgoswami/Downloads/untitled folder 2/venv/lib/python3.14/site-packages/starlette/middleware/exceptions.py", line 63, in __call__
+    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+  File "/Users/susmitgoswami/Downloads/untitled folder 2/venv/lib/python3.14/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
+    raise exc
+  File "/Users/susmitgoswami/Downloads/untitled folder 2/venv/lib/python3.14/site-packages/starlette/_exception_handler.py", line 42, in wrapped_app
+    await app(scope, receive, sender)
+  File "/Users/susmitgoswami/Downloads/untitled folder 2/venv/lib/python3.14/site-packages/fastapi/middleware/asyncexitstack.py", line 18, in __call__
+    await self.app(scope, receive, send)
+  File "/Users/susmitgoswami/Downloads/untitled folder 2/venv/lib/python3.14/site-packages/starlette/routing.py", line 716, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "/Users/susmitgoswami/Downloads/untitled folder 2/venv/lib/python3.14/site-packages/starlette/routing.py", line 736, in app
+    await route.handle(scope, receive, send)
+  File "/Users/susmitgoswami/Downloads/untitled folder 2/venv/lib/python3.14/site-packages/starlette/routing.py", line 290, in handle
+    await self.app(scope, receive, send)
+  File "/Users/susmitgoswami/Downloads/untitled folder 2/venv/lib/python3.14/site-packages/fastapi/routing.py", line 130, in app
+    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+  File "/Users/susmitgoswami/Downloads/untitled folder 2/venv/lib/python3.14/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
+    raise exc
+  File "/Users/susmitgoswami/Downloads/untitled folder 2/venv/lib/python3.14/site-packages/starlette/_exception_handler.py", line 42, in wrapped_app
+    await app(scope, receive, sender)
+  File "/Users/susmitgoswami/Downloads/untitled folder 2/venv/lib/python3.14/site-packages/fastapi/routing.py", line 116, in app
+    response = await f(request)
+               ^^^^^^^^^^^^^^^^
+  File "/Users/susmitgoswami/Downloads/untitled folder 2/venv/lib/python3.14/site-packages/fastapi/routing.py", line 670, in app
+    raw_response = await run_endpoint_function(
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<3 lines>...
+    )
+    ^
+  File "/Users/susmitgoswami/Downloads/untitled folder 2/venv/lib/python3.14/site-packages/fastapi/routing.py", line 324, in run_endpoint_function
+    return await dependant.call(**values)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/susmitgoswami/Downloads/untitled folder 2/src/serving/api.py", line 107, in predict_fpt
+ValueError: Invalid isoformat string: 'string'
+INFO:     127.0.0.1:56483 - "POST /predict HTTP/1.1" 500 Internal Server Error
+ERROR:    Exception in ASGI application
+Traceback (most recent call last):
+  File "/Users/susmitgoswami/Downloads/untitled folder 2/venv/lib/python3.14/site-packages/uvicorn/protocols/http/h11_impl.py", line 410, in run_asgi
+        await self.send_500_response()
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+    else:
+    ^^^^^
+        self.transport.close()
+    
+  File "/Users/susmitgoswami/Downloads/untitled folder 2/venv/lib/python3.14/site-packages/uvicorn/middleware/proxy_headers.py", line 60, in __call__
+    return await self.app(scope, receive, send)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/susmitgoswami/Downloads/untitled folder 2/venv/lib/python3.14/site-packages/fastapi/applications.py", line 1160, in __call__
+    await super().__call__(scope, receive, send)
+  File "/Users/susmitgoswami/Downloads/untitled folder 2/venv/lib/python3.14/site-packages/starlette/applications.py", line 107, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "/Users/susmitgoswami/Downloads/untitled folder 2/venv/lib/python3.14/site-packages/starlette/middleware/errors.py", line 186, in __call__
+    raise exc
+  File "/Users/susmitgoswami/Downloads/untitled folder 2/venv/lib/python3.14/site-packages/starlette/middleware/errors.py", line 164, in __call__
+    await self.app(scope, receive, _send)
+  File "/Users/susmitgoswami/Downloads/untitled folder 2/venv/lib/python3.14/site-packages/starlette/middleware/exceptions.py", line 63, in __call__
+    await wrap_app_handling_exceptions(self.app, conn)(scope, receive, send)
+  File "/Users/susmitgoswami/Downloads/untitled folder 2/venv/lib/python3.14/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
+    raise exc
+  File "/Users/susmitgoswami/Downloads/untitled folder 2/venv/lib/python3.14/site-packages/starlette/_exception_handler.py", line 42, in wrapped_app
+    await app(scope, receive, sender)
+  File "/Users/susmitgoswami/Downloads/untitled folder 2/venv/lib/python3.14/site-packages/fastapi/middleware/asyncexitstack.py", line 18, in __call__
+    await self.app(scope, receive, send)
+  File "/Users/susmitgoswami/Downloads/untitled folder 2/venv/lib/python3.14/site-packages/starlette/routing.py", line 716, in __call__
+    await self.middleware_stack(scope, receive, send)
+  File "/Users/susmitgoswami/Downloads/untitled folder 2/venv/lib/python3.14/site-packages/starlette/routing.py", line 736, in app
+    await route.handle(scope, receive, send)
+  File "/Users/susmitgoswami/Downloads/untitled folder 2/venv/lib/python3.14/site-packages/starlette/routing.py", line 290, in handle
+    await self.app(scope, receive, send)
+  File "/Users/susmitgoswami/Downloads/untitled folder 2/venv/lib/python3.14/site-packages/fastapi/routing.py", line 130, in app
+    await wrap_app_handling_exceptions(app, request)(scope, receive, send)
+  File "/Users/susmitgoswami/Downloads/untitled folder 2/venv/lib/python3.14/site-packages/starlette/_exception_handler.py", line 53, in wrapped_app
+    raise exc
+  File "/Users/susmitgoswami/Downloads/untitled folder 2/venv/lib/python3.14/site-packages/starlette/_exception_handler.py", line 42, in wrapped_app
+    await app(scope, receive, sender)
+  File "/Users/susmitgoswami/Downloads/untitled folder 2/venv/lib/python3.14/site-packages/fastapi/routing.py", line 116, in app
+    response = await f(request)
+               ^^^^^^^^^^^^^^^^
+  File "/Users/susmitgoswami/Downloads/untitled folder 2/venv/lib/python3.14/site-packages/fastapi/routing.py", line 670, in app
+    raw_response = await run_endpoint_function(
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<3 lines>...
+    )
+    ^
+  File "/Users/susmitgoswami/Downloads/untitled folder 2/venv/lib/python3.14/site-packages/fastapi/routing.py", line 324, in run_endpoint_function
+    return await dependant.call(**values)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/susmitgoswami/Downloads/untitled folder 2/src/serving/api.py", line 107, in predict_fpt
+ValueError: Invalid isoformat string: 'string'
