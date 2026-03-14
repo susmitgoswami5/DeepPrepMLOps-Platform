@@ -161,7 +161,7 @@ async def startup_event():
     # Init SHAP Backgrounds (mocked 10 sample distribution)
     torch.manual_seed(42)
     BG_DISTS["r"] = torch.randint(0, len(R2I) if R2I else 20, (10,), dtype=torch.long)
-    BG_DISTS["w"] = torch.randn(10, 7, dtype=torch.float32)
+    BG_DISTS["w"] = torch.randn(10, 10, dtype=torch.float32)
     BG_DISTS["s"] = torch.randn(10, 3, 1, dtype=torch.float32) * 5.0
     
     print("Model Loaded for Inference!")
@@ -212,7 +212,7 @@ async def predict_fpt(req: OrderInferenceRequest):
     
     # 6. Construct Tensors
     r_tensor = torch.tensor([rest_idx], dtype=torch.long)
-    w_tensor = torch.tensor([[hour_sin, hour_cos, day_sin, day_cos, avg_emb[0], avg_emb[1], avg_emb[2]]], dtype=torch.float32)
+    w_tensor = torch.tensor([[hour_sin, hour_cos, day_sin, day_cos, avg_emb[0], avg_emb[1], avg_emb[2], utilization, wait_time, queue_length]], dtype=torch.float32)
     s_tensor = torch.tensor([[[load_15], [load_30], [load_60]]], dtype=torch.float32)
     
     # 7. SHADOW DEPLOYMENT ROUTER
@@ -372,7 +372,7 @@ async def register_feedback(feedback: BreachFeedback):
         rest_idx = R2I.get(feedback.restaurant_id, 0)
         
         r_tensor = torch.tensor([rest_idx], dtype=torch.long)
-        w_tensor = torch.tensor([[hour_sin, hour_cos, day_sin, day_cos, avg_emb[0], avg_emb[1], avg_emb[2]]], dtype=torch.float32)
+        w_tensor = torch.tensor([[hour_sin, hour_cos, day_sin, day_cos, avg_emb[0], avg_emb[1], avg_emb[2], 0.0, 0.0, 0.0]], dtype=torch.float32)
         s_tensor = torch.tensor([[[0.0], [0.0], [0.0]]], dtype=torch.float32) # Simplified for feedback
         
         # Forward pass on Champion
@@ -440,7 +440,7 @@ async def explain_prediction(req: OrderInferenceRequest):
     utilization, wait_time, queue_length = calculate_mmc_metrics(lambda_val, 15.0, c_val)
     
     r_tensor = torch.tensor([rest_idx], dtype=torch.long)
-    w_tensor = torch.tensor([[hour_sin, hour_cos, day_sin, day_cos, avg_emb[0], avg_emb[1], avg_emb[2]]], dtype=torch.float32)
+    w_tensor = torch.tensor([[hour_sin, hour_cos, day_sin, day_cos, avg_emb[0], avg_emb[1], avg_emb[2], utilization, wait_time, queue_length]], dtype=torch.float32)
     s_tensor = torch.tensor([[[load_15], [load_30], [load_60]]], dtype=torch.float32)
     
     with torch.no_grad():

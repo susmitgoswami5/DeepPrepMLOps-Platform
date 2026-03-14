@@ -12,7 +12,7 @@ import torch
 import torch.nn as nn
 import random
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 
 # Add project root to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -44,6 +44,11 @@ def generate_synthetic_training_data(num_samples=500):
         load_30 = random.uniform(0, 60)
         load_60 = random.uniform(0, 80)
         
+        # Queue engine features
+        cook_utilization = random.uniform(0.1, 0.99)
+        queue_wait_time_m = random.uniform(0, 15)
+        orders_in_queue = random.uniform(0, 10)
+        
         rest_idx = random.randint(0, 19)
         
         # Ground truth: a non-linear function mimicking real kitchen behavior
@@ -54,7 +59,8 @@ def generate_synthetic_training_data(num_samples=500):
         
         data.append({
             "rest_idx": rest_idx,
-            "features": [hour_sin, hour_cos, day_sin, day_cos, emb[0], emb[1], emb[2]],
+            "features": [hour_sin, hour_cos, day_sin, day_cos, emb[0], emb[1], emb[2],
+                         cook_utilization, queue_wait_time_m, orders_in_queue],
             "seq": [[load_15], [load_30], [load_60]],
             "targets": [p50_true, p90_true, p95_true]
         })
@@ -109,7 +115,7 @@ def train_model(data, epochs=20, lr=0.001):
 def main():
     print("=" * 60)
     print(f"🔄 DEEPPREP NIGHTLY RETRAINING PIPELINE")
-    print(f"   Timestamp: {datetime.utcnow().isoformat()}Z")
+    print(f"   Timestamp: {datetime.now(timezone.utc).isoformat()}Z")
     print("=" * 60)
     
     # Step 1: Generate fresh data
@@ -129,7 +135,7 @@ def main():
     
     # Step 4: Save training metadata
     metadata = {
-        "trained_at": datetime.utcnow().isoformat(),
+        "trained_at": datetime.now(timezone.utc).isoformat(),
         "num_samples": len(data),
         "epochs": 20,
         "final_mse_loss": round(final_loss, 4),

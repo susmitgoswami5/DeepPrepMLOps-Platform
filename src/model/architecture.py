@@ -2,14 +2,15 @@ import torch
 import torch.nn as nn
 
 class WideSide(nn.Module):
-    def __init__(self, num_restaurants: int, restaurant_emb_dim: int = 8, other_wide_features: int = 6):
+    def __init__(self, num_restaurants: int, restaurant_emb_dim: int = 8, other_wide_features: int = 10):
         """
         Wide side for memorizing specific restaurant characteristics and handling simple linear features.
-        other_wide_features includes: hour_sin, hour_cos, day_sin, day_cos, and 3 item embedding dims.
+        other_wide_features includes: hour_sin, hour_cos, day_sin, day_cos, 3 item embedding dims,
+        and 3 queue engine features (cook_utilization, queue_wait_time_m, orders_in_queue).
         """
         super().__init__()
         self.restaurant_embedding = nn.Embedding(num_embeddings=num_restaurants, embedding_dim=restaurant_emb_dim)
-        # We also pass other features (cyclic time, averaged item embeddings)
+        # We also pass other features (cyclic time, averaged item embeddings, queue metrics)
         self.linear = nn.Linear(restaurant_emb_dim + other_wide_features, 16)
         
     def forward(self, restaurant_idx: torch.Tensor, wide_features: torch.Tensor) -> torch.Tensor:
@@ -18,6 +19,7 @@ class WideSide(nn.Module):
         r_emb = self.restaurant_embedding(restaurant_idx)
         wide_input = torch.cat([r_emb, wide_features], dim=-1)
         return torch.relu(self.linear(wide_input))
+
 
 
 class DeepSide(nn.Module):
@@ -42,8 +44,8 @@ class DeepSide(nn.Module):
 class DeepPrepModel(nn.Module):
     def __init__(self, num_restaurants: int):
         super().__init__()
-        # 4 cyclic + 3 emb = 7 features (weights expect 15: 8 emb_dim + 7)
-        self.wide = WideSide(num_restaurants=num_restaurants, restaurant_emb_dim=8, other_wide_features=7) 
+        # 4 cyclic + 3 emb + 3 queue = 10 features (weights expect 18: 8 emb_dim + 10)
+        self.wide = WideSide(num_restaurants=num_restaurants, restaurant_emb_dim=8, other_wide_features=10) 
         self.deep = DeepSide(seq_feature_dim=1, hidden_size=32)
         
         # Combine the wide and deep outputs

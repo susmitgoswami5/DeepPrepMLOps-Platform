@@ -42,6 +42,12 @@ def generate_holdout_data(num_samples=100):
         load_15 = random.uniform(0, 50)
         load_30 = random.uniform(0, 60)
         load_60 = random.uniform(0, 80)
+        
+        # Queue engine features
+        cook_utilization = random.uniform(0.1, 0.99)
+        queue_wait_time_m = random.uniform(0, 15)
+        orders_in_queue = random.uniform(0, 10)
+        
         rest_idx = random.randint(0, 19)
         
         base_time = 10 + (load_60 * 0.3) + (hour_sin * 5) + random.gauss(0, 3)
@@ -51,7 +57,8 @@ def generate_holdout_data(num_samples=100):
         
         data.append({
             "rest_idx": rest_idx,
-            "features": [hour_sin, hour_cos, day_sin, day_cos, emb[0], emb[1], emb[2]],
+            "features": [hour_sin, hour_cos, day_sin, day_cos, emb[0], emb[1], emb[2],
+                         cook_utilization, queue_wait_time_m, orders_in_queue],
             "seq": [[load_15], [load_30], [load_60]],
             "targets": [p50_true, p90_true, p95_true]
         })
@@ -83,7 +90,7 @@ def main():
     print("🧪 DEEPPREP MODEL VALIDATION GATE")
     print("=" * 60)
     
-    champion_path = "models/deep_prep_model.pt"
+    champion_path = "models/deep_prep_weights.pth"
     challenger_path = "models/challenger_model.pt"
     
     if not os.path.exists(challenger_path):

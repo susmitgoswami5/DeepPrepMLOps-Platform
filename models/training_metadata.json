@@ -1,7 +1,7 @@
 {
-  "trained_at": "2026-03-12T06:13:28.198159",
+  "trained_at": "2026-03-14T17:56:03.762243+00:00",
   "num_samples": 500,
   "epochs": 20,
-  "final_mse_loss": 14.0986,
+  "final_mse_loss": 14.8219,
   "model_path": "models/challenger_model.pt"
 }

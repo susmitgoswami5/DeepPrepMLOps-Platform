@@ -9,7 +9,7 @@ on:
 env:
   PYTHON_VERSION: '3.10'
   MODEL_DIR: 'models'
-  CHAMPION_PATH: 'models/deep_prep_model.pt'
+  CHAMPION_PATH: 'models/deep_prep_weights.pth'
 
 jobs:
   retrain:
@@ -29,7 +29,7 @@ jobs:
       - name: "📦 Install Dependencies"
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
+          pip install torch numpy
 
       - name: "🧠 Execute Nightly Retraining"
         run: |
@@ -46,7 +46,7 @@ jobs:
         run: |
           echo "✅ New model passed validation gate."
           echo "📦 Promoting new model to Champion..."
-          cp models/challenger_model.pt models/deep_prep_model.pt
+          cp models/challenger_model.pt models/deep_prep_weights.pth
           echo "🎉 Champion model updated successfully."
 
       - name: "💾 Commit Updated Weights"
