@@ -12,6 +12,53 @@ Unlike standard Jupyter Notebook projects, this repository demonstrates a comple
 
 ---
 
+## 🚀 Resume & CV Highlights
+*(Feel free to use these bullet points for your resume)*
+* **Real-Time Forecasting Engine**: Designed an ETA prediction pipeline using **PyTorch** and **Kafka**, reducing P95 prediction anomalies by simulating live kitchen queue stress via M/M/c queuing theory.
+* **Continuous Integration & Delivery**: Architected a zero-downtime MLOps retraining pipeline via **GitHub Actions** with an automated shadow deployment router to prevent degraded model rollouts.
+* **Operational Observability**: Built a command center using **Streamlit** and **SHAP** gradient explainers, providing operations teams with real-time explainability on surging delivery delays.
+
+---
+
+## 📊 System Architecture
+
+```mermaid
+graph TD
+    %% Define styles
+    classDef stream fill:#1a1c29,stroke:#55a6ed,stroke-width:2px,color:#fff;
+    classDef feature fill:#2b193d,stroke:#9d5bde,stroke-width:2px,color:#fff;
+    classDef ml fill:#15291b,stroke:#3eed7e,stroke-width:2px,color:#fff;
+    classDef user fill:#332211,stroke:#f29424,stroke-width:2px,color:#fff;
+
+    subgraph Event Streaming
+        A(Live Order Events) -->|Produce| B[\Apache Kafka/]
+        B -->|Consume| C{Simulation Engine}
+        C -->|Queue Features| D[(Feast Feature Store)]
+    end
+    class B,C stream;
+    class D feature;
+
+    subgraph Inference Layer
+        E(FastAPI Gateway) --> F(Champion Model)
+        E --> G(Challenger Model)
+        D -->|Online Retrieval| E
+    end
+    class E,F,G ml;
+
+    subgraph Observability
+        H[Streamlit Dashboard] -->|Interpretability| I((SHAP Explainer))
+        H -->|Metrics| J((Prometheus))
+        E -->|Shadow Delta| J
+        F --> H
+    end
+    class H,I,J user;
+
+    %% Connections
+    B -.-> E
+```
+
+---
+
 ## 🏗️ Architecture & Tech Stack
 
 This project was built to mirror the production environments of Tier-1 logistics companies:
@@ -42,24 +89,33 @@ These simulation outputs are injected perfectly into the PyTorch Neural Network 
 
 ## 🚀 Running the Project Locally
 
-### 1. Start Redis (Required for Feast Online Store & State Management)
-```bash
-docker run -d -p 6379:6379 --name feast-redis redis:alpine
-```
+DeepPrep is fully Dockerized for immediate reproducibility. You only need Docker and Docker Compose installed.
 
-### 2. Start the Live Prediction API
+### 1. Launch the Entire Stack
 ```bash
-# Ensure you are passing the Redis Host if not localhost
-export FEAST_REDIS_HOST=localhost
-uvicorn src.api.router:app --host 0.0.0.0 --port 8000 --reload
+make up
+# or: docker-compose up -d --build
 ```
-Access the interactive Swagger documentation at `http://localhost:8000/docs`
+This automatically provisions:
+- **Redis** (Feature Store & State Management)
+- **Zookeeper & Kafka** (Event Streaming)
+- **FastAPI Model Serving** (port `8000`)
+- **Streamlit Command Center** (port `8501`)
 
-### 2. Start the Observability Dashboard
+### 2. Access the Interfaces
+- **API Swagger Docs**: `http://localhost:8000/docs`
+- **Telemetry Dashboard**: `http://localhost:8501`
+
+### 3. Run a Live Simulation Demo
 ```bash
-streamlit run src.monitoring.dashboard.py
+make demo
 ```
-View SHAP explanations, drift reports, and simulate live orders at `http://localhost:8501`.
+This will generate mock traffic, push payloads through the Kafka-PyTorch network, and compile a fresh Data Drift HTML report.
+
+### 4. Tear Down
+```bash
+make down
+```
 
 ### 3. Generate a Drift Report
 ```bash
