@@ -39,10 +39,9 @@ jobs:
         id: validate
         run: |
           python scripts/validate_model.py
-        continue-on-error: false
 
       - name: "🚀 Auto-Deploy If Validation Passes"
-        if: success()
+        if: steps.validate.outputs.deploy == 'true'
         run: |
           echo "✅ New model passed validation gate."
           echo "📦 Promoting new model to Champion..."
@@ -50,7 +49,7 @@ jobs:
           echo "🎉 Champion model updated successfully."
 
       - name: "💾 Commit Updated Weights"
-        if: success()
+        if: steps.validate.outputs.deploy == 'true'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"

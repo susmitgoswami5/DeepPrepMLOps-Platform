@@ -124,16 +124,24 @@ def main():
     print(f"   Delta:          {champ_loss - chall_loss:.4f}")
     
     # Decision gate
+    env_file = os.getenv("GITHUB_OUTPUT")
+    
     if chall_loss < champ_loss:
         improvement = ((champ_loss - chall_loss) / champ_loss) * 100
         print(f"\n✅ GATE PASSED: Challenger is {improvement:.1f}% better!")
         print("   -> Safe to promote to Champion.")
+        if env_file:
+            with open(env_file, "a") as f:
+                f.write("deploy=true\n")
         sys.exit(0)
     else:
         degradation = ((chall_loss - champ_loss) / champ_loss) * 100
         print(f"\n❌ GATE FAILED: Challenger is {degradation:.1f}% worse.")
         print("   -> Keeping current Champion. No deployment.")
-        sys.exit(1)
+        if env_file:
+            with open(env_file, "a") as f:
+                f.write("deploy=false\n")
+        sys.exit(0)
 
 
 if __name__ == "__main__":
