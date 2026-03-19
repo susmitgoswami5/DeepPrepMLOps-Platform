@@ -13,127 +13,128 @@ API_URL_PREDICT = f"{API_URL}/predict"
 API_URL_EXPLAIN = f"{API_URL}/explain"
 API_URL_METRICS = f"{API_URL}/metrics"
 
-st.set_page_config(layout="wide", page_title="DeepPrep ML Platform Insight", page_icon="🍔")
+st.set_page_config(layout="wide", page_title="DeepPrep Telemetry", page_icon="📈")
 
-# --- CUSTOM CSS FOR MODERN UI ---
+# --- CUSTOM CSS FOR ENTERPRISE UI ---
 st.markdown("""
 <style>
-    /* Global modern font and background */
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap');
+    /* Global modern font */
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
     
     html, body, [class*="css"] {
-        font-family: 'Inter', sans-serif;
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
     }
     
-    /* Subtle glowing header */
+    /* Clean, minimal header */
     h1 {
-        font-weight: 800;
-        background: -webkit-linear-gradient(45deg, #FF6B6B, #FF8E53);
-        -webkit-background-clip: text;
-        -webkit-text-fill-color: transparent;
-        text-shadow: 0px 4px 20px rgba(255, 107, 107, 0.4);
-        margin-bottom: 0.2em;
+        font-weight: 700;
+        color: #ffffff;
+        letter-spacing: -0.02em;
+        margin-bottom: 0.1em;
     }
     
-    /* Glassmorphism Metric Cards */
+    /* Sleek Metric Cards */
     div[data-testid="metric-container"] {
-        background: rgba(255, 255, 255, 0.05);
-        border: 1px solid rgba(255, 255, 255, 0.1);
-        backdrop-filter: blur(10px);
-        -webkit-backdrop-filter: blur(10px);
-        border-radius: 12px;
-        padding: 20px;
-        box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.2);
-        transition: transform 0.2s ease, box-shadow 0.2s ease;
+        background: #0E1117;
+        border: 1px solid #1E2329;
+        border-radius: 8px;
+        padding: 1rem;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        transition: transform 0.15s ease, border-color 0.15s ease;
     }
     
     div[data-testid="metric-container"]:hover {
-        transform: translateY(-5px);
-        box-shadow: 0 12px 40px 0 rgba(255, 107, 107, 0.3);
+        border-color: #3B82F6;
+        transform: translateY(-2px);
     }
 
-    /* Target the ETA success box */
+    /* ETA Success Box */
     .eta-box {
-        background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
-        border-radius: 12px;
-        padding: 25px;
-        color: white;
-        text-align: center;
-        box-shadow: 0 10px 30px rgba(56, 239, 125, 0.4);
-        margin: 20px 0;
+        background: #0E1117;
+        border-left: 4px solid #10B981;
+        border-radius: 6px;
+        padding: 1.5rem;
+        color: #e2e8f0;
+        margin: 1rem 0;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.2);
     }
     
     .eta-box h2 {
-        color: white;
+        color: #10B981;
         margin: 0;
-        font-weight: 800;
-        font-size: 3rem;
+        font-weight: 700;
+        font-size: 2.5rem;
+        letter-spacing: -0.02em;
     }
     
-    /* Copilot Chat Box */
+    /* Copilot / Insights Box */
     .copilot-box {
-        background: rgba(30, 41, 59, 0.7);
-        border-left: 5px solid #6366f1;
-        padding: 20px;
-        border-radius: 8px;
-        font-size: 1.1rem;
-        line-height: 1.6;
-        color: #e2e8f0;
-        margin-top: 15px;
-        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        background: #0E1117;
+        border: 1px solid #1E2329;
+        border-top: 3px solid #6366F1;
+        padding: 1.2rem;
+        border-radius: 6px;
+        font-size: 0.95rem;
+        line-height: 1.5;
+        color: #94A3B8;
+        margin-top: 1rem;
+    }
+    
+    .copilot-box strong {
+        color: #F8FAFC;
     }
     
     /* Surge Warning Box */
     .surge-box {
-        background: linear-gradient(135deg, #b91d73 0%, #f953c6 100%);
-        border-radius: 10px;
-        padding: 15px;
-        color: white;
-        font-weight: bold;
-        text-align: center;
-        animation: pulse 2s infinite;
-        box-shadow: 0 0 20px rgba(249, 83, 198, 0.6);
-        margin-bottom: 20px;
-    }
-
-    @keyframes pulse {
-        0% { transform: scale(1); }
-        50% { transform: scale(1.02); }
-        100% { transform: scale(1); }
+        background: rgba(239, 68, 68, 0.1);
+        border: 1px solid rgba(239, 68, 68, 0.2);
+        border-left: 4px solid #EF4444;
+        border-radius: 6px;
+        padding: 1rem;
+        color: #EF4444;
+        font-weight: 600;
+        font-size: 0.9rem;
+        margin-bottom: 1rem;
     }
     
     /* Custom Sidebar Button */
     .stButton > button {
         width: 100%;
-        border-radius: 30px;
-        background: linear-gradient(90deg, #4facfe 0%, #00f2fe 100%);
-        color: white;
-        font-weight: bold;
-        padding: 0.75rem 1.5rem;
-        border: none;
-        box-shadow: 0 4px 15px rgba(0, 242, 254, 0.4);
-        transition: all 0.3s;
+        border-radius: 6px;
+        background: #FFFFFF;
+        color: #0F172A;
+        font-weight: 600;
+        padding: 0.5rem 1rem;
+        border: 1px solid #E2E8F0;
+        transition: all 0.2s;
     }
     
     .stButton > button:hover {
-        background: linear-gradient(90deg, #00f2fe 0%, #4facfe 100%);
-        transform: scale(1.05);
-        color: white;
+        background: #F8FAFC;
+        border-color: #CBD5E1;
+        color: #0F172A;
+    }
+    
+    /* Subtitle text */
+    .subtitle-text {
+        color: #64748B;
+        font-size: 1.05rem;
+        font-weight: 400;
+        letter-spacing: -0.01em;
     }
 </style>
 """, unsafe_allow_html=True)
 
-st.title("DeepPrep Command Center")
-st.markdown("<p style='color: #888; font-size: 1.2rem;'>Next-Generation AI Logistics & ETA Forecasting Engine</p>", unsafe_allow_html=True)
+st.title("Network Telemetry")
+st.markdown("<p class='subtitle-text'>DeepPrep Production Forecasting & Logistics Engine</p>", unsafe_allow_html=True)
 st.write("---")
 
 # Layout: Split into Sidebar and Main Content
-st.sidebar.image("https://cdn-icons-png.flaticon.com/512/2921/2921822.png", width=100)
-st.sidebar.title("Ops Console")
-st.sidebar.markdown("Inject live streams directly into the Kafka-PyTorch network.")
+st.sidebar.title("Operations Console")
+st.sidebar.markdown("Execute synthetic pipeline injection for performance validation.")
 
-if st.sidebar.button("🚀 INJECT LIVE ORDER STREAM"):
-    st.sidebar.success("Stream active! Waiting for PyTorch inference...")
+if st.sidebar.button("Execute Pipeline Injection"):
+    st.sidebar.success("Payload queued. Awaiting inference...")
     
     # Generate Fake Event
     restaurant_id = f"R{str(random.randint(1, 20)).zfill(3)}"
@@ -161,13 +162,13 @@ if st.sidebar.button("🚀 INJECT LIVE ORDER STREAM"):
         
         with col_main:
             st.markdown(f"### Live Order Details")
-            st.markdown(f"**Ticket ID:** `<span style='color: #4facfe;'>{order_id}</span>` &nbsp;&nbsp;|&nbsp;&nbsp; **Hub:** `<span style='color: #FF8E53;'>{restaurant_id}</span>`", unsafe_allow_html=True)
+            st.markdown(f"**Ticket ID:** `<span style='color: #60A5FA;'>{order_id}</span>` &nbsp;&nbsp;|&nbsp;&nbsp; **Hub:** `<span style='color: #F87171;'>{restaurant_id}</span>`", unsafe_allow_html=True)
             st.markdown(f"**Manifest:** {', '.join(items)}")
             
             st.markdown(f"""
             <div class="eta-box">
-                <p style="margin:0; font-size: 1.2rem; opacity: 0.9;">Target Delivery Prediction (P95)</p>
-                <h2>{p95} <span style="font-size: 1.5rem;">MINUTES</span></h2>
+                <p style="margin:0; font-size: 0.95rem; color: #94A3B8; text-transform: uppercase; font-weight: 600; letter-spacing: 0.05em;">Target Delivery Forecast (P95)</p>
+                <h2>{p95} <span style="font-size: 1.5rem; color: #10B981; font-weight: 500;">MINUTES</span></h2>
             </div>
             """, unsafe_allow_html=True)
             
@@ -175,33 +176,33 @@ if st.sidebar.button("🚀 INJECT LIVE ORDER STREAM"):
             if explain_data.get('is_surging'):
                 st.markdown("""
                 <div class="surge-box">
-                    ⚠️ CRITICAL SURGE: AUTOMATED THROTTLING & PRICING ACTIVATED
+                    SYSTEM ALERT: Load throttling protocols and dynamic pricing active.
                 </div>
                 """, unsafe_allow_html=True)
 
         with col_side:
             # --- AI OPERATIONS COPILOT ---
-            st.markdown("### 🤖 Neural Copilot")
+            st.markdown("### Automated Insights")
             try:
                 copilot_res = requests.post(f"{API_URL}/copilot", json=explain_data, timeout=5)
                 copilot_res.raise_for_status()
                 narrative = copilot_res.json()["narrative"]
                 st.markdown(f"""
                 <div class="copilot-box">
-                    <strong>AI Operations Insight:</strong><br><br>
+                    <strong>Event Analysis:</strong><br><br>
                     {narrative}
                 </div>
                 """, unsafe_allow_html=True)
             except Exception as e:
-                st.warning(f"Copilot offline: {e}")
+                st.warning(f"Analysis service unavailable: {e}")
         
         st.write("---")
         
         # --- DEEP EXPLAINABILITY ---
-        st.markdown("### 🔬 Interpretability Matrix (SHAP Values)")
+        st.markdown("### Interpretability Matrix (SHAP)")
         
         factors = explain_data['key_factors']
-        st.caption("Primary mathematically extracted vectors driving the PyTorch prediction:")
+        st.caption("Primary vectors driving the current forecast:")
         
         m_col1, m_col2, m_col3 = st.columns(3)
         with m_col1: st.metric("Primary Driver", factors[0] if len(factors) > 0 else "N/A")
@@ -218,7 +219,7 @@ if st.sidebar.button("🚀 INJECT LIVE ORDER STREAM"):
 
 # --- TABS FOR METRICS ---
 st.write("---")
-tab1, tab2 = st.tabs(["🚀 Global System Telemetry", "🛡️ Model Health (Evidently AI)"])
+tab1, tab2 = st.tabs(["Telemetry Metrics", "Model Health Drift"])
 
 with tab1:
     st.markdown("### Native Prometheus Exporter")
@@ -241,4 +242,4 @@ with tab2:
         st.info("Scanner standby. Run `python src/monitoring/drift_detector.py` to compile latest HTML artifact.")
 
 st.sidebar.markdown("---")
-st.sidebar.caption("DeepPrep Platform OS v2.3.1 (Aesthetica Build)")
+st.sidebar.caption("DeepPrep Engineering | Build 2.3.1")
