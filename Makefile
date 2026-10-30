@@ -1,4 +1,4 @@
-.PHONY: help install up down demo test retrain
+.PHONY: help install up down demo test retrain evaluate
 
 help: ## Show this help menu
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
@@ -16,8 +16,8 @@ down: ## Tear down the Docker Compose stack
 	docker-compose down -v
 
 demo: ## Generate mock logs and run full pipeline simulation
-	python3 data/mock_generator.py
-	python3 src/monitoring/drift_detector.py
+	python3 -m src.data.mock_generator
+	python3 -m src.monitoring.drift_detector
 	@echo "🎉 Demo pipeline simulation complete. Check UI for updates."
 
 retrain: ## Manually trigger the Model Retraining Pipeline
@@ -25,8 +25,11 @@ retrain: ## Manually trigger the Model Retraining Pipeline
 	python3 scripts/validate_model.py
 	@echo "✅ Retraining and Validation Gate executed."
 
-test: ## Run unit tests (pytest must be installed)
-	python3 -m pytest tests/
+test: ## Run unit tests
+	python3 -m pytest -q tests/
+
+evaluate: ## Re-run the held-out evaluation and ablation (writes evaluation/results.md)
+	python3 -m evaluation.evaluate
 
 format: ## Format code with black/flake8 (if installed)
 	black src/

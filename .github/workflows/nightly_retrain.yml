@@ -1,13 +1,16 @@
-name: "🔄 Nightly Model Retrain & Auto-Deploy"
+name: "Scheduled Retrain & Validation Gate"
 
 on:
   schedule:
-    # Run every day at 2:00 AM UTC
-    - cron: '0 2 * * *'
+    # Weekly, Sunday 02:00 UTC (weekly keeps the commit history clean)
+    - cron: '0 2 * * 0'
   workflow_dispatch: # Allow manual trigger from GitHub UI
 
+permissions:
+  contents: write
+
 env:
-  PYTHON_VERSION: '3.10'
+  PYTHON_VERSION: '3.11'
   MODEL_DIR: 'models'
   CHAMPION_PATH: 'models/deep_prep_weights.pth'
 
@@ -29,9 +32,10 @@ jobs:
       - name: "📦 Install Dependencies"
         run: |
           python -m pip install --upgrade pip
-          pip install torch numpy
+          pip install torch --index-url https://download.pytorch.org/whl/cpu
+          pip install numpy polars scikit-learn
 
-      - name: "🧠 Execute Nightly Retraining"
+      - name: "🧠 Retrain Challenger"
         run: |
           python scripts/retrain.py
 
@@ -54,5 +58,5 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add models/
-          git diff --cached --quiet || git commit -m "chore(model): auto-deploy retrained champion [nightly CI/CD]"
+          git diff --cached --quiet || git commit -m "chore(model): auto-deploy retrained champion [scheduled retrain]"
           git push

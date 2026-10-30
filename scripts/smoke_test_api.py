@@ -1,3 +1,7 @@
+"""End-to-end API smoke test. Needs the Docker stack (Redis, Feast) running: make up"""
+import os, sys
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 import json
 import asyncio
 from fastapi.testclient import TestClient
