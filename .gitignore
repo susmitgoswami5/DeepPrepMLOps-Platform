@@ -20,3 +20,9 @@ __pycache__/
 # models/*.pth
 # data/*.parquet
 # src/monitoring/reports/*.html
+
+# Local logs and run artefacts (never commit)
+*.log
+api_log*.txt
+mock_orders.parquet
+src/monitoring/reports/
