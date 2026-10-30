@@ -16,7 +16,7 @@ from confluent_kafka import Producer
 # Import our custom components
 from src.model.architecture import DeepPrepModel
 from src.features.engineering import get_mock_embedding, add_cyclic_features
-from src.features.queue_engine import calculate_mmc_metrics
+from src.features.queue_engine import queue_features
 
 app = FastAPI(title="DeepPrep FPT Predictor")
 
@@ -205,10 +205,7 @@ async def predict_fpt(req: OrderInferenceRequest):
     load_60 = feature_vector["load_60m"][0] or 0
     
     # 5. Apply Queuing Theory (M/M/c)
-    lambda_val = load_60
-    mu_val = 15.0
-    c_val = max(1, min(6, int(lambda_val / 10)))
-    utilization, wait_time, queue_length = calculate_mmc_metrics(lambda_val, mu_val, c_val)
+    utilization, wait_time, queue_length = queue_features(load_60, req.restaurant_id)
     
     # 6. Construct Tensors
     r_tensor = torch.tensor([rest_idx], dtype=torch.long)
@@ -435,9 +432,7 @@ async def explain_prediction(req: OrderInferenceRequest):
     load_30 = feature_vector["load_30m"][0] or 0
     load_60 = feature_vector["load_60m"][0] or 0
     
-    lambda_val = load_60
-    c_val = max(1, min(6, int(lambda_val / 10)))
-    utilization, wait_time, queue_length = calculate_mmc_metrics(lambda_val, 15.0, c_val)
+    utilization, wait_time, queue_length = queue_features(load_60, req.restaurant_id)
     
     r_tensor = torch.tensor([rest_idx], dtype=torch.long)
     w_tensor = torch.tensor([[hour_sin, hour_cos, day_sin, day_cos, avg_emb[0], avg_emb[1], avg_emb[2], utilization, wait_time, queue_length]], dtype=torch.float32)
