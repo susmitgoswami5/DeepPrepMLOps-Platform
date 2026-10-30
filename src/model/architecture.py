@@ -59,8 +59,25 @@ class DeepPrepModel(nn.Module):
         # Quantile Predictor (Output heads for 50th, 90th, 95th percentiles)
         # Size 3 output representing [p50, p90, p95]
         self.output_head = nn.Linear(16, 3)
+        # Start predictions near a typical preparation time (minutes) instead of 0,
+        # so the quantile heads do not spend early epochs climbing from zero.
+        nn.init.constant_(self.output_head.bias, 15.0)
         
+    @staticmethod
+    def scale_inputs(wide_features: torch.Tensor, seq_features: torch.Tensor):
+        """Compress heavy-tailed count and time features with log1p.
+
+        Order counts and queue wait times can be an order of magnitude larger than
+        the cyclic/embedding features; without scaling they dominate the first
+        layers and training stalls. Doing this inside the model means the training
+        pipeline and the API always apply exactly the same transform.
+        """
+        wide = wide_features.clone()
+        wide[:, 8:10] = torch.log1p(wide[:, 8:10].clamp(min=0))   # queue wait, orders in queue
+        return wide, torch.log1p(seq_features.clamp(min=0))
+
     def forward(self, restaurant_idx: torch.Tensor, wide_features: torch.Tensor, seq_features: torch.Tensor) -> torch.Tensor:
+        wide_features, seq_features = self.scale_inputs(wide_features, seq_features)
         wide_out = self.wide(restaurant_idx, wide_features)
         deep_out = self.deep(seq_features)
         
@@ -78,6 +95,11 @@ def quantile_loss(preds: torch.Tensor, target: torch.Tensor, quantiles: list[flo
     target: (batch_size, 1)
     """
     assert preds.size(1) == len(quantiles), "Number of predictions must match number of quantiles"
+    # Force target to (batch, 1). A (batch, 1, 1) target would silently broadcast
+    # against (batch, 1) predictions into a (batch, batch, 1) matrix, comparing every
+    # prediction with every target and collapsing the model to a constant.
+    target = target.reshape(-1, 1)
+    assert target.size(0) == preds.size(0), "Target and prediction batch sizes differ"
     
     losses = []
     for i, q in enumerate(quantiles):
